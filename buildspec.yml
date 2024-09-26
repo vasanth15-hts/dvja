@@ -1,0 +1,119 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo "Updating APT packages"
+      - apt-get update -y
+
+      - echo "Installing Node.js and NPM"
+      - curl -sL https://deb.nodesource.com/setup_20.x | bash -
+      - apt-get install -y nodejs
+      - npm install -g npm@latest --no-color
+      - node -v
+      - npm -v
+
+      - echo "Installing OWASP Dependency Check"
+      - curl -L https://github.com/jeremylong/DependencyCheck/releases/download/v8.3.1/dependency-check-8.3.1-release.zip -o dependency-check.zip
+      - apt-get install -y unzip
+      - unzip dependency-check.zip -d dependency-check
+      - export PATH=$PATH:$(pwd)/dependency-check/bin
+
+      - echo "Installing Snyk CLI via NPM"
+      - npm install -g snyk --no-color
+
+      - echo "Installing Snyk to HTML converter"
+      - npm install -g snyk-to-html --no-color
+      - snyk --version
+
+      - echo "Installing AWS CLI for SES email"
+      - apt-get install -y awscli
+      - aws configure set aws_access_key_id $AWS_ACCESS_KEY
+      - aws configure set aws_secret_access_key $AWS_SECRET_KEY
+      - aws configure set default.region us-east-1  # Set to your AWS region
+
+  pre_build:
+    commands:
+      - echo "Authenticating with Snyk"
+      - snyk auth $SNYK_TOKEN
+
+  build:
+    commands:
+      - echo "Running Maven Clean and Package"
+      - mvn clean package
+
+      - echo "Running OWASP Dependency Check"
+      - mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY -DoutputDirectory=target
+
+      - echo "Running Snyk for SAST and Saving Report"
+      - snyk code test --all-projects --json > snyk-report.json || true
+
+      - echo "Converting Snyk JSON Report to HTML"
+      - snyk-to-html -i snyk-report.json -o snyk-report.html
+
+      - echo "Moving Snyk Report to Target Directory"
+      - mv snyk-report.html target/
+
+      - echo "Generating image definition file"
+      - echo '[{"name":"cicd/test","imageUri":"890742607967.dkr.ecr.ap-south-1.amazonaws.com/cicd/test:latest"}]' > target/imagedefinitions.json
+
+      - echo "Running SonarCloud Analysis"
+      - mvn verify sonar:sonar -Dsonar.projectKey=monster -Dsonar.organization=monster -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=9694b8a21216ed240b16f68817210bf76422579f
+
+  post_build:
+    commands:
+      - echo "Preparing to send reports via AWS SES"
+
+      # Create the raw email file
+      - echo "To: $SES_TO_EMAIL" > email.txt
+      - echo "From: $SES_FROM_EMAIL" >> email.txt
+      - echo "Subject: Build Reports" >> email.txt
+      - echo "MIME-Version: 1.0" >> email.txt
+      - echo "Content-Type: multipart/mixed; boundary=\"NextPart\"" >> email.txt
+      - echo "" >> email.txt
+
+      # Email Body
+      - echo "--NextPart" >> email.txt
+      - echo "Content-Type: text/plain" >> email.txt
+      - echo "" >> email.txt
+      - echo "Please find attached the build reports." >> email.txt
+      - echo "" >> email.txt
+
+      # Attach dependency-check-report.html
+      - echo "--NextPart" >> email.txt
+      - echo "Content-Type: text/html; name=\"dependency-check-report.html\"" >> email.txt
+      - echo "Content-Disposition: attachment; filename=\"dependency-check-report.html\"" >> email.txt
+      - echo "Content-Transfer-Encoding: base64" >> email.txt
+      - echo "" >> email.txt
+      - base64 target/dependency-check-report.html >> email.txt
+      - echo "" >> email.txt
+
+      # Attach snyk-report.html
+      - echo "--NextPart" >> email.txt
+      - echo "Content-Type: text/html; name=\"snyk-report.html\"" >> email.txt
+      - echo "Content-Disposition: attachment; filename=\"snyk-report.html\"" >> email.txt
+      - echo "Content-Transfer-Encoding: base64" >> email.txt
+      - echo "" >> email.txt
+      - base64 target/snyk-report.html >> email.txt
+      - echo "--NextPart--" >> email.txt
+
+      # Send the email via AWS SES
+      - aws ses send-raw-email --raw-message file://email.txt
+
+artifacts:
+  files:
+    - target/*
+    - target/imagedefinitions.json  # Ensure image definition file is included
+
+reports:
+  dependency-check:
+    files:
+      - target/dependency-check-report.html # Ensure XML report is included
+      - target/dependency-check-report.xml  # Ensure XML report is included
+  snyk:
+    files:
+      - target/snyk-report.html  # Include Snyk report
+
+cache:
+  paths:
+    - /root/.m2/**/*  # Cache Maven dependencies
