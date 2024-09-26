@@ -5,7 +5,7 @@ phases:
     commands:
       - echo "Updating APT packages"
       - apt-get update -y
-      
+
       - echo "Installing Node.js and NPM"
       - curl -sL https://deb.nodesource.com/setup_20.x | bash -
       - apt-get install -y nodejs
@@ -39,20 +39,34 @@ phases:
       - echo "Running OWASP Dependency Check with NVD API Key"
       - mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY
 
+      - echo "Renaming OWASP Dependency Check reports with build ID"
+      - BUILD_ID=$(echo $CODEBUILD_BUILD_ID | awk -F':' '{print $2}')  # Extract build ID
+      - mv target/dependency-check-report.html target/dependency-check-report-${BUILD_ID}.html
+      - mv target/dependency-check-report.xml target/dependency-check-report-${BUILD_ID}.xml
+
       - echo "Running Snyk for SAST and Saving Report"
-      - snyk test --all-projects --json > snyk-report.json || true
+      - snyk test --all-projects --json > snyk-report-${BUILD_ID}.json || true
 
       - echo "Converting Snyk JSON Report to HTML"
-      - snyk-to-html -i snyk-report.json -o snyk-report.html
+      - snyk-to-html -i snyk-report-${BUILD_ID}.json -o snyk-report-${BUILD_ID}.html
 
       - echo "Moving Snyk Report to Target Directory"
-      - mv snyk-report.html target/
+      - mv snyk-report-${BUILD_ID}.html target/
 
       - echo "Generating image definition file"
       - echo '[{"name":"cicd/test","imageUri":"890742607967.dkr.ecr.ap-south-1.amazonaws.com/cicd/test:latest"}]' > target/imagedefinitions.json
 
       - echo "Running SonarCloud Analysis"
       - mvn verify sonar:sonar -Dsonar.projectKey=monster -Dsonar.organization=monster -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=9694b8a21216ed240b16f68817210bf76422579f
+
+  post_build:
+    commands:
+      - echo "Uploading OWASP Dependency Check reports to S3"
+      - aws s3 cp target/dependency-check-report-${BUILD_ID}.html s3://cicddevsecops/dvja/reports/
+      - aws s3 cp target/dependency-check-report-${BUILD_ID}.xml s3://cicddevsecops/dvja/reports/
+
+      - echo "Uploading Snyk report to S3"
+      - aws s3 cp target/snyk-report-${BUILD_ID}.html s3://cicddevsecops/dvja/reports/
 
 artifacts:
   files:
@@ -62,11 +76,11 @@ artifacts:
 reports:
   dependency-check:
     files:
-      - target/dependency-check-report.html
-      - target/dependency-check-report.xml
+      - target/dependency-check-report-${BUILD_ID}.html
+      - target/dependency-check-report-${BUILD_ID}.xml
   snyk:
     files:
-      - target/snyk-report.html
+      - target/snyk-report-${BUILD_ID}.html
 
 cache:
   paths:
