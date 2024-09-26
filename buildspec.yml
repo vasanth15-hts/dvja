@@ -30,7 +30,7 @@ phases:
       - apt-get install -y awscli
       - aws configure set aws_access_key_id $AWS_ACCESS_KEY
       - aws configure set aws_secret_access_key $AWS_SECRET_KEY
-      - aws configure set default.region us-east-1  # Set to your AWS region
+      - aws configure set default.region ap-south-1  # Set to your AWS region
 
   pre_build:
     commands:
@@ -62,43 +62,19 @@ phases:
 
   post_build:
     commands:
-      - echo "Preparing to send reports via AWS SES"
+      - echo "Uploading reports to S3"
+      - aws s3 cp target/dependency-check-report.html s3://cicddevsecops/dvja/dependency-check-report.html || true
+      - aws s3 cp target/snyk-report.html s3://cicddevsecops/dvja/snyk-report.html || true
 
-      # Create the raw email file
-      - echo "To: $SES_TO_EMAIL" > email.txt
-      - echo "From: $SES_FROM_EMAIL" >> email.txt
-      - echo "Subject: Build Reports" >> email.txt
-      - echo "MIME-Version: 1.0" >> email.txt
-      - echo "Content-Type: multipart/mixed; boundary=\"NextPart\"" >> email.txt
-      - echo "" >> email.txt
+      - echo "Generating report URLs"
+      - DEP_CHECK_URL="https://s3.amazonaws.com/cicddevsecops/dvja/dependency-check-report.html"
+      - SNYK_REPORT_URL="https://s3.amazonaws.com/cicddevsecops/dvja/snyk-report.html"
 
-      # Email Body
-      - echo "--NextPart" >> email.txt
-      - echo "Content-Type: text/plain" >> email.txt
-      - echo "" >> email.txt
-      - echo "Please find attached the build reports." >> email.txt
-      - echo "" >> email.txt
-
-      # Attach dependency-check-report.html
-      - echo "--NextPart" >> email.txt
-      - echo "Content-Type: text/html; name=\"dependency-check-report.html\"" >> email.txt
-      - echo "Content-Disposition: attachment; filename=\"dependency-check-report.html\"" >> email.txt
-      - echo "Content-Transfer-Encoding: base64" >> email.txt
-      - echo "" >> email.txt
-      - base64 target/dependency-check-report.html >> email.txt
-      - echo "" >> email.txt
-
-      # Attach snyk-report.html
-      - echo "--NextPart" >> email.txt
-      - echo "Content-Type: text/html; name=\"snyk-report.html\"" >> email.txt
-      - echo "Content-Disposition: attachment; filename=\"snyk-report.html\"" >> email.txt
-      - echo "Content-Transfer-Encoding: base64" >> email.txt
-      - echo "" >> email.txt
-      - base64 target/snyk-report.html >> email.txt
-      - echo "--NextPart--" >> email.txt
-
-      # Send the email via AWS SES
-      - aws ses send-raw-email --raw-message file://email.txt
+      - echo "Sending reports via AWS SES"
+      - aws ses send-email \
+        --from "$SES_FROM_EMAIL" \
+        --destination "ToAddresses=$SES_TO_EMAIL" \
+        --message "Subject={Data=Build Reports,Charset=utf8},Body={Text={Data=Build completed. Reports available,Charset=utf8},Html={Data=<h1>Build Reports</h1><p><a href='${DEP_CHECK_URL}'>Dependency Check Report</a></p><p><a href='${SNYK_REPORT_URL}'>Snyk Report</a></p>,Charset=utf8}}"
 
 artifacts:
   files:
@@ -108,7 +84,7 @@ artifacts:
 reports:
   dependency-check:
     files:
-      - target/dependency-check-report.html # Ensure XML report is included
+      - target/dependency-check-report.html  # Ensure HTML report is included
       - target/dependency-check-report.xml  # Ensure XML report is included
   snyk:
     files:
