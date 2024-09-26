@@ -74,7 +74,7 @@ phases:
       - aws ses send-email \
         --from "$SES_FROM_EMAIL" \
         --destination "ToAddresses=$SES_TO_EMAIL" \
-        --message "Subject={Data=Build Reports,Charset=utf8},Body={Text={Data=Build completed. Reports available,Charset=utf8},Html={Data=<h1>Build Reports</h1><p><a href='${DEP_CHECK_URL}'>Dependency Check Report</a></p><p><a href='${SNYK_REPORT_URL}'>Snyk Report</a></p>,Charset=utf8}}"
+        --message "Subject={Data=Build Reports,Charset=utf8},Body={Text={Data=Build completed. Reports available,Charset=utf8},Html={Data=<h1>Build Reports</h1><p>Build has completed successfully. You can view the reports below:</p><ul><li><a href='${DEP_CHECK_URL}'>Dependency Check Report</a></li><li><a href='${SNYK_REPORT_URL}'>Snyk Report</a></li></ul>,Charset=utf8}}"
 
 artifacts:
   files:
