@@ -82,5 +82,28 @@ post_build:
     - echo "Creating ZIP file for reports..."
     - zip reports.zip target/snyk-report.html target/dependency-check-report.html
 
+    - echo "Creating MIME file for email with attachment..."
+    - |
+      cat <<EOF > email.txt
+      From: "vasanth@hts.consulting"
+      To: "antony@hts.consulting, vasanth@hts.consulting"
+      Subject: DevSecOps Reports Generated
+      MIME-Version: 1.0
+      Content-Type: multipart/mixed; boundary="NextPart"
+
+      --NextPart
+      Content-Type: text/plain
+
+      Please find the attached reports for Snyk and OWASP Dependency Check.
+
+      --NextPart
+      Content-Type: application/zip; name="reports.zip"
+      Content-Transfer-Encoding: base64
+      Content-Disposition: attachment; filename="reports.zip"
+
+      $(base64 reports.zip)
+      --NextPart--
+      EOF
+
     - echo "Sending email notification with reports as attachment..."
-    - aws ses send-email --from "vasanth@hts.consulting" --destination "ToAddresses=antony@hts.consulting,vasanth@hts.consulting" --message "Subject={Data=DevSecOps Reports Generated,Charset=utf8},Body={Text={Data='Please find the attached reports for Snyk and OWASP Dependency Check.',Charset=utf8}}" --region "ap-south-1" --attachments "reports.zip"
+    - aws ses send-raw-email --raw-message file://email.txt --region "ap-south-1"
