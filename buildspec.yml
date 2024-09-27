@@ -55,36 +55,35 @@ phases:
       - mvn verify sonar:sonar -Dsonar.projectKey=monster -Dsonar.organization=monster -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=9694b8a21216ed240b16f68817210bf76422579f
 
   post_build:
-  commands:
-    - echo "Zipping all reports in target folder..."
-    - zip -r reports.zip target/*
+    commands:
+      - echo "Zipping all reports in target folder..."
+      - zip -r reports.zip target/*
 
-    - echo "Creating MIME message with reports.zip attachment..."
-    - |
-      cat <<EOF > email.txt
-      From: "vasanth@hts.consulting"
-      To: "antony@hts.consulting, vasanth@hts.consulting"
-      Subject: DevSecOps Reports
-      MIME-Version: 1.0
-      Content-Type: multipart/mixed; boundary="NextPart"
+      - echo "Creating MIME message with reports.zip attachment..."
+      - |
+        cat <<EOF > email.txt
+        From: "vasanth@hts.consulting"
+        To: "antony@hts.consulting, vasanth@hts.consulting"
+        Subject: DevSecOps Reports
+        MIME-Version: 1.0
+        Content-Type: multipart/mixed; boundary="NextPart"
 
-      --NextPart
-      Content-Type: text/plain
+        --NextPart
+        Content-Type: text/plain
 
-      Attached are the reports generated from the DevSecOps pipeline.
+        Attached are the reports generated from the DevSecOps pipeline.
 
-      --NextPart
-      Content-Type: application/zip; name="reports.zip"
-      Content-Transfer-Encoding: base64
-      Content-Disposition: attachment; filename="reports.zip"
+        --NextPart
+        Content-Type: application/zip; name="reports.zip"
+        Content-Transfer-Encoding: base64
+        Content-Disposition: attachment; filename="reports.zip"
 
-      $(base64 reports.zip)
-      --NextPart--
-      EOF
+        $(base64 reports.zip)
+        --NextPart--
+        EOF
 
-    - echo "Sending email with reports.zip attachment..."
-    - aws ses send-raw-email --raw-message file://email.txt --region "ap-south-1"
-
+      - echo "Sending email with reports.zip attachment..."
+      - aws ses send-raw-email --raw-message file://email.txt --region "ap-south-1"
 
 artifacts:
   files:
