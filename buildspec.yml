@@ -79,5 +79,8 @@ post_build:
     - echo "Sending OWASP Dependency Check report to S3..."
     - aws s3 cp target/dependency-check-report.html s3://cicddevsecops/dvja/dependency-check-report.html
 
-    - echo "Sending email notification via SNS..."
-    - aws sns publish --topic-arn "arn:aws:sns:ap-south-1:890742607967:SnykReports" --message "Snyk and Dependency Check reports have been generated and uploaded to S3. You can check the reports at: s3://cicddevsecops/dvja/" --subject "DevSecOps Reports Generated"
+    - echo "Creating ZIP file for reports..."
+    - zip reports.zip target/snyk-report.html target/dependency-check-report.html
+
+    - echo "Sending email notification with reports as attachment..."
+    - aws ses send-email --from "vasanth@hts.consulting" --destination "ToAddresses=antony@hts.consulting" --message "Subject={Data=DevSecOps Reports Generated,Charset=utf8},Body={Text={Data='Please find the attached reports for Snyk and OWASP Dependency Check.',Charset=utf8}}" --region "ap-south-1" --attachments "reports.zip"
