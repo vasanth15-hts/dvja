@@ -5,7 +5,7 @@ phases:
     commands:
       - echo "Updating APT packages"
       - apt-get update -y
-      
+
       - echo "Installing Node.js and NPM"
       - curl -sL https://deb.nodesource.com/setup_20.x | bash -
       - apt-get install -y nodejs
@@ -21,10 +21,10 @@ phases:
 
       - echo "Installing Snyk CLI via NPM"
       - npm install -g snyk --no-color
+      - snyk --version
 
       - echo "Installing Snyk to HTML converter"
       - npm install -g snyk-to-html --no-color
-      - snyk --version
 
   pre_build:
     commands:
@@ -36,17 +36,14 @@ phases:
       - echo "Running Maven Clean and Package"
       - mvn clean package
 
-      - echo "Running OWASP Dependency Check with NVD API Key"
+      - echo "Running OWASP Dependency Check"
       - mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY
 
-      - echo "Running Snyk for SAST and Saving Report"
+      - echo "Running Snyk SAST and Saving Report"
       - snyk test --all-projects --json > snyk-report.json || true
 
       - echo "Converting Snyk JSON Report to HTML"
-      - snyk-to-html -i snyk-report.json -o snyk-report.html
-
-      - echo "Moving Snyk Report to Target Directory"
-      - mv snyk-report.html target/
+      - snyk-to-html -i snyk-report.json -o target/snyk-report.html
 
       - echo "Generating image definition file"
       - echo '[{"name":"cicd/test","imageUri":"890742607967.dkr.ecr.ap-south-1.amazonaws.com/cicd/test:latest"}]' > target/imagedefinitions.json
@@ -57,7 +54,7 @@ phases:
 artifacts:
   files:
     - target/*
-    - target/imagedefinitions.json  # Include image definition file
+    - target/imagedefinitions.json
 
 reports:
   dependency-check:
@@ -73,28 +70,22 @@ cache:
 
 post_build:
   commands:
-    - echo "Sending Snyk report to S3..."
-    - aws s3 cp target/snyk-report.html s3://cicddevsecops/dvja/snyk-report.html
+    - echo "Zipping all reports in target folder..."
+    - zip -r reports.zip target/*
 
-    - echo "Sending OWASP Dependency Check report to S3..."
-    - aws s3 cp target/dependency-check-report.html s3://cicddevsecops/dvja/dependency-check-report.html
-
-    - echo "Creating ZIP file for reports..."
-    - zip reports.zip target/snyk-report.html target/dependency-check-report.html
-
-    - echo "Creating MIME file for email with attachment..."
+    - echo "Creating MIME message with reports.zip attachment..."
     - |
       cat <<EOF > email.txt
       From: "vasanth@hts.consulting"
       To: "antony@hts.consulting, vasanth@hts.consulting"
-      Subject: DevSecOps Reports Generated
+      Subject: DevSecOps Reports
       MIME-Version: 1.0
       Content-Type: multipart/mixed; boundary="NextPart"
 
       --NextPart
       Content-Type: text/plain
 
-      Please find the attached reports for Snyk and OWASP Dependency Check.
+      Attached are the reports generated from the DevSecOps pipeline.
 
       --NextPart
       Content-Type: application/zip; name="reports.zip"
@@ -105,5 +96,5 @@ post_build:
       --NextPart--
       EOF
 
-    - echo "Sending email notification with reports as attachment..."
+    - echo "Sending email with reports.zip attachment..."
     - aws ses send-raw-email --raw-message file://email.txt --region "ap-south-1"
