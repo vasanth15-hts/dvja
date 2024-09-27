@@ -73,24 +73,14 @@ cache:
 
 post_build:
   commands:
-    - echo "Fetching the Build ID"
-    - BUILD_ID=$(aws codebuild batch-get-builds --ids $CODEBUILD_BUILD_ID --query 'builds[0].id' --output text)
-    - echo "Build ID is: $BUILD_ID"
-
-    - echo "Renaming Snyk report with Build ID"
-    - mv target/snyk-report.html target/snyk-report-${BUILD_ID}.html
-
-    - echo "Renaming OWASP Dependency Check report with Build ID"
-    - mv target/dependency-check-report.html target/dependency-check-report-${BUILD_ID}.html
-
     - echo "Sending Snyk report to S3..."
-    - aws s3 cp target/snyk-report-${BUILD_ID}.html s3://cicddevsecops/dvja/snyk-report-${BUILD_ID}.html
+    - aws s3 cp target/snyk-report.html s3://cicddevsecops/dvja/snyk-report.html
 
     - echo "Sending OWASP Dependency Check report to S3..."
-    - aws s3 cp target/dependency-check-report-${BUILD_ID}.html s3://cicddevsecops/dvja/dependency-check-report-${BUILD_ID}.html
+    - aws s3 cp target/dependency-check-report.html s3://cicddevsecops/dvja/dependency-check-report.html
 
-    - echo "Creating ZIP file for reports with Build ID..."
-    - zip reports-${BUILD_ID}.zip target/snyk-report-${BUILD_ID}.html target/dependency-check-report-${BUILD_ID}.html
+    - echo "Creating ZIP file for reports..."
+    - zip reports.zip target/snyk-report.html target/dependency-check-report.html
 
-    - echo "Sending email notification with reports as attachment and Build ID..."
-    - aws ses send-email --from "vasanth@hts.consulting" --destination "ToAddresses=antony@hts.consulting" --message "Subject={Data=DevSecOps Reports Generated - Build ID: $BUILD_ID,Charset=utf8},Body={Text={Data='Please find the attached reports for Snyk and OWASP Dependency Check for Build ID: $BUILD_ID.',Charset=utf8}}" --region "ap-south-1" --attachments "reports-${BUILD_ID}.zip"
+    - echo "Sending email notification with reports as attachment..."
+    - aws ses send-email --from "vasanth@hts.consulting" --destination "ToAddresses=antony@hts.consulting" --message "Subject={Data=DevSecOps Reports Generated,Charset=utf8},Body={Text={Data='Please find the attached reports for Snyk and OWASP Dependency Check.',Charset=utf8}}" --region "ap-south-1" --attachments "reports.zip"
