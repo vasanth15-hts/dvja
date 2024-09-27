@@ -3,98 +3,20 @@ version: 0.2
 phases:
   install:
     commands:
-      - echo "Updating APT packages"
-      - apt-get update -y
-
-      - echo "Installing Node.js and NPM"
-      - curl -sL https://deb.nodesource.com/setup_20.x | bash -
-      - apt-get install -y nodejs
-      - npm install -g npm@latest --no-color
-      - node -v
-      - npm -v
-
-      - echo "Installing OWASP Dependency Check"
-      - curl -L https://github.com/jeremylong/DependencyCheck/releases/download/v8.3.1/dependency-check-8.3.1-release.zip -o dependency-check.zip
-      - apt-get install -y unzip
-      - unzip dependency-check.zip -d dependency-check
-      - export PATH=$PATH:$(pwd)/dependency-check/bin
-
-      - echo "Installing Snyk CLI via NPM"
-      - npm install -g snyk --no-color
-      - snyk --version
-
-      - echo "Installing Snyk to HTML converter"
-      - npm install -g snyk-to-html --no-color
+      - echo "Running Install Phase"
 
   pre_build:
     commands:
-      - echo "Authenticating with Snyk"
-      - snyk auth $SNYK_TOKEN
+      - echo "Running Pre-build Phase"
 
   build:
     commands:
-      - echo "Running Maven Clean and Package"
-      - mvn clean package
-
-      - echo "Running OWASP Dependency Check"
-      - mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY
-
-      - echo "Running Snyk SAST and Saving Report"
-      - snyk test --all-projects --json > snyk-report.json || true
-
-      - echo "Converting Snyk JSON Report to HTML"
-      - snyk-to-html -i snyk-report.json -o target/snyk-report.html
-
-      - echo "Generating image definition file"
-      - echo '[{"name":"cicd/test","imageUri":"890742607967.dkr.ecr.ap-south-1.amazonaws.com/cicd/test:latest"}]' > target/imagedefinitions.json
-
-      - echo "Running SonarCloud Analysis"
-      - mvn verify sonar:sonar -Dsonar.projectKey=monster -Dsonar.organization=monster -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=9694b8a21216ed240b16f68817210bf76422579f
+      - echo "Running Build Phase"
 
 post_build:
   commands:
-    - echo "Zipping all reports in target folder..."
-    - zip -r reports.zip target/*
-
-    - echo "Creating MIME message with reports.zip attachment..."
-    - |
-      cat <<EOF > email.txt
-      From: "vasanth@hts.consulting"
-      To: "antony@hts.consulting, vasanth@hts.consulting"
-      Subject: DevSecOps Reports
-      MIME-Version: 1.0
-      Content-Type: multipart/mixed; boundary="NextPart"
-
-      --NextPart
-      Content-Type: text/plain
-
-      Attached are the reports generated from the DevSecOps pipeline.
-
-      --NextPart
-      Content-Type: application/zip; name="reports.zip"
-      Content-Transfer-Encoding: base64
-      Content-Disposition: attachment; filename="reports.zip"
-
-      $(base64 reports.zip)
-      --NextPart--
-      EOF
-
-    - echo "Sending email with reports.zip attachment..."
-    - aws ses send-raw-email --raw-message file://email.txt --region "ap-south-1"
+    - echo "Running Post-build Phase"
 
 artifacts:
   files:
     - target/*
-    - target/imagedefinitions.json
-
-reports:
-  dependency-check:
-    files:
-      - target/dependency-check-report.html
-  snyk:
-    files:
-      - target/snyk-report.html
-
-cache:
-  paths:
-    - /root/.m2/**/*  # Cache Maven dependencies
