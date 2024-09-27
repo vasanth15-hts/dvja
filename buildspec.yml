@@ -81,6 +81,6 @@ post_build:
 
     - echo "Sending email notification via SNS..."
     - aws sns publish \
-        --topic-arn arn:aws:sns:ap-south-1:890742607967:Snyk \
+        --topic-arn arn:aws:sns:ap-south-1:890742607967:SnykReports \
         --message "Snyk and Dependency Check reports have been generated and uploaded to S3. You can check the reports at: s3://cicddevsecops/dvja/" \
         --subject "DevSecOps Reports Generated"
