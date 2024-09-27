@@ -59,15 +59,6 @@ phases:
       - echo "Running SonarCloud Analysis"
       - mvn verify sonar:sonar -Dsonar.projectKey=monster -Dsonar.organization=monster -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=9694b8a21216ed240b16f68817210bf76422579f
 
-  post_build:
-    commands:
-      - echo "Uploading OWASP Dependency Check reports to S3"
-      - aws s3 cp target/dependency-check-report-${BUILD_ID}.html s3://cicddevsecops/dvja/reports/
-      - aws s3 cp target/dependency-check-report-${BUILD_ID}.xml s3://cicddevsecops/dvja/reports/
-
-      - echo "Uploading Snyk report to S3"
-      - aws s3 cp target/snyk-report-${BUILD_ID}.html s3://cicddevsecops/dvja/reports/
-
 artifacts:
   files:
     - target/*
