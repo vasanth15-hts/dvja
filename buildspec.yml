@@ -56,7 +56,8 @@ phases:
 
 artifacts:
   files:
-    - target/*
+    - target/snyk-report.html
+    - target/dependency-check-report.html
     - target/imagedefinitions.json  # Include image definition file
 
 reports:
