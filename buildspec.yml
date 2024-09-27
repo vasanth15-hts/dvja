@@ -83,4 +83,4 @@ post_build:
     - zip reports.zip target/snyk-report.html target/dependency-check-report.html
 
     - echo "Sending email notification with reports as attachment..."
-    - aws ses send-email --from "vasanth@hts.consulting" --destination "ToAddresses=antony@hts.consulting, vasanth@hts.consulting" --message "Subject={Data=DevSecOps Reports Generated,Charset=utf8},Body={Text={Data='Please find the attached reports for Snyk and OWASP Dependency Check.',Charset=utf8}}" --region "ap-south-1" --attachments "reports.zip"
+    - aws ses send-email --from "vasanth@hts.consulting" --destination "ToAddresses=antony@hts.consulting,vasanth@hts.consulting" --message "Subject={Data=DevSecOps Reports Generated,Charset=utf8},Body={Text={Data='Please find the attached reports for Snyk and OWASP Dependency Check.',Charset=utf8}}" --region "ap-south-1" --attachments "reports.zip"
