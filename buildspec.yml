@@ -51,23 +51,6 @@ phases:
       - echo "Running SonarCloud Analysis"
       - mvn verify sonar:sonar -Dsonar.projectKey=monster -Dsonar.organization=monster -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=9694b8a21216ed240b16f68817210bf76422579f
 
-artifacts:
-  files:
-    - target/*
-    - target/imagedefinitions.json
-
-reports:
-  dependency-check:
-    files:
-      - target/dependency-check-report.html
-  snyk:
-    files:
-      - target/snyk-report.html
-
-cache:
-  paths:
-    - /root/.m2/**/*  # Cache Maven dependencies
-
 post_build:
   commands:
     - echo "Zipping all reports in target folder..."
@@ -98,3 +81,20 @@ post_build:
 
     - echo "Sending email with reports.zip attachment..."
     - aws ses send-raw-email --raw-message file://email.txt --region "ap-south-1"
+
+artifacts:
+  files:
+    - target/*
+    - target/imagedefinitions.json
+
+reports:
+  dependency-check:
+    files:
+      - target/dependency-check-report.html
+  snyk:
+    files:
+      - target/snyk-report.html
+
+cache:
+  paths:
+    - /root/.m2/**/*  # Cache Maven dependencies
