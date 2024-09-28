@@ -3,27 +3,22 @@ version: 0.2
 phases:
   install:
     commands:
-      - echo "Updating APT packages"
-      - apt-get update -y
+      - echo "Updating APT packages and installing dependencies"
+      - apt-get update -y && apt-get install -y curl unzip
       
-      - echo "Installing Node.js and NPM"
-      - curl -sL https://deb.nodesource.com/setup_20.x | bash -
-      - apt-get install -y nodejs
-      - npm install -g npm@latest --no-color
+      - echo "Installing Node.js (with npm)"
+      - curl -sL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs
+      
       - node -v
       - npm -v
 
-      - echo "Installing OWASP Dependency Check"
+      - echo "Installing OWASP Dependency Check CLI"
       - curl -L https://github.com/jeremylong/DependencyCheck/releases/download/v8.3.1/dependency-check-8.3.1-release.zip -o dependency-check.zip
-      - apt-get install -y unzip
       - unzip dependency-check.zip -d dependency-check
       - export PATH=$PATH:$(pwd)/dependency-check/bin
 
-      - echo "Installing Snyk CLI via NPM"
-      - npm install -g snyk --no-color
-
-      - echo "Installing Snyk to HTML converter"
-      - npm install -g snyk-to-html --no-color
+      - echo "Installing Snyk CLI and Snyk to HTML converter"
+      - npm install -g snyk snyk-to-html --no-color
       - snyk --version
 
   pre_build:
@@ -39,13 +34,13 @@ phases:
       - echo "Running OWASP Dependency Check with NVD API Key"
       - mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY
 
-      - echo "Running Snyk for SAST and Saving Report"
+      - echo "Running Snyk for SAST and saving report"
       - snyk test --all-projects --json > snyk-report.json || true
 
-      - echo "Converting Snyk JSON Report to HTML"
+      - echo "Converting Snyk JSON report to HTML"
       - snyk-to-html -i snyk-report.json -o snyk-report.html
 
-      - echo "Moving Snyk Report to Target Directory"
+      - echo "Moving Snyk report to target directory"
       - mv snyk-report.html target/
 
       - echo "Generating image definition file"
@@ -56,14 +51,22 @@ phases:
 
   post_build:
     commands:
-      - echo "Generating pre-signed URL for Snyk report"
-      - export SNYK_REPORT_PATH=target/snyk-report.html
-      - export BUCKET_NAME=cicddevsecops  # Replace with your bucket name
-      - export PRESIGNED_URL=$(aws s3 presign s3://$BUCKET_NAME/$SNYK_REPORT_PATH --expires-in 3600)
-      - echo "Pre-signed URL for Snyk report: $PRESIGNED_URL"
+      - echo "Zipping all reports in target folder..."
+      - zip -r reports.zip target/*
+
+      - echo "Uploading reports.zip to S3..."
+      - aws s3 cp reports.zip s3://cicddevsecops/reports.zip
       
-      - echo "Sending notification with pre-signed URL"
-      - aws sns publish --topic-arn "arn:aws:sns:ap-south-1:890742607967:SnykReports" --message "A new Snyk report is available. You can download it here: $PRESIGNED_URL"
+      - echo "Generating pre-signed URL for reports.zip..."
+      - export PRESIGNED_URL=$(aws s3 presign s3://cicddevsecops/reports.zip --expires-in 3600)
+
+      - echo "Sending email with pre-signed URL..."
+      - |
+        aws ses send-email \
+          --from "vasanth@hts.consulting" \
+          --destination "ToAddresses=antony@hts.consulting,vasanth@hts.consulting" \
+          --message "Subject=DevSecOps Reports, Body=Attached are the reports generated from the DevSecOps pipeline. You can download them here: $PRESIGNED_URL" \
+          --region "ap-south-1"
 
 artifacts:
   files:
@@ -80,4 +83,4 @@ reports:
 
 cache:
   paths:
-    - /root/.m2/**/*
+    - /root/.m2/**/*  # Cache Maven dependencies
