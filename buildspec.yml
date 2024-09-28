@@ -5,10 +5,9 @@ phases:
     commands:
       - echo "Updating APT packages and installing dependencies"
       - apt-get update -y && apt-get install -y curl unzip
-      
+
       - echo "Installing Node.js (with npm)"
       - curl -sL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs
-      
       - node -v
       - npm -v
 
@@ -33,54 +32,38 @@ phases:
 
       - echo "Running OWASP Dependency Check with NVD API Key"
       - mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY
+      - echo "Moving Dependency Check report"
+      - mv target/dependency-check-report.xml .
 
       - echo "Running Snyk for SAST and saving report"
       - snyk test --all-projects --json > snyk-report.json || true
-
       - echo "Converting Snyk JSON report to HTML"
       - snyk-to-html -i snyk-report.json -o snyk-report.html
-
-      - echo "Moving Snyk report to target directory"
       - mv snyk-report.html target/
-
-      - echo "Generating image definition file"
-      - echo '[{"name":"cicd/test","imageUri":"890742607967.dkr.ecr.ap-south-1.amazonaws.com/cicd/test:latest"}]' > target/imagedefinitions.json
 
       - echo "Running SonarCloud Analysis"
       - mvn verify sonar:sonar -Dsonar.projectKey=monster -Dsonar.organization=monster -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=9694b8a21216ed240b16f68817210bf76422579f
 
   post_build:
     commands:
-      - echo "Zipping all reports in target folder..."
-      - zip -r reports.zip target/*
+      - echo "Uploading Dependency Check report to DefectDojo"
+      - curl -X POST "https://your-defectdojo-instance/api/v2/import-scan/" \
+        -H "Authorization: Token $DEFECTDOJO_API_KEY" \
+        -F 'scan_type=Dependency Check' \
+        -F 'engagement=$DEFECTDOJO_ENGAGEMENT_ID' \
+        -F 'file=@dependency-check-report.xml'
 
-      - echo "Uploading reports.zip to S3..."
-      - aws s3 cp reports.zip s3://cicddevsecops/reports.zip
-      
-      - echo "Generating pre-signed URL for reports.zip..."
-      - export PRESIGNED_URL=$(aws s3 presign s3://cicddevsecops/reports.zip --expires-in 3600)
-
-      - echo "Sending email with pre-signed URL..."
-      - |
-        aws ses send-email \
-          --from "vasanth@hts.consulting" \
-          --destination "ToAddresses=antony@hts.consulting,vasanth@hts.consulting" \
-          --message "Subject=DevSecOps Reports, Body=Attached are the reports generated from the DevSecOps pipeline. You can download them here: $PRESIGNED_URL" \
-          --region "ap-south-1"
+      - echo "Uploading Snyk report to DefectDojo"
+      - curl -X POST "https://your-defectdojo-instance/api/v2/import-scan/" \
+        -H "Authorization: Token $DEFECTDOJO_API_KEY" \
+        -F 'scan_type=Snyk' \
+        -F 'engagement=$DEFECTDOJO_ENGAGEMENT_ID' \
+        -F 'file=@snyk-report.json'
 
 artifacts:
   files:
-    - target/*
-    - target/imagedefinitions.json  # Include image definition file
-
-reports:
-  dependency-check:
-    files:
-      - target/dependency-check-report.html
-  snyk:
-    files:
-      - target/snyk-report.html
-
-cache:
-  paths:
-    - /root/.m2/**/*  # Cache Maven dependencies
+    - target/snyk-report.html
+    - target/dependency-check-report.xml
+    - dependency-check-report.xml
+    - snyk-report.json
+  discard-paths: yes
