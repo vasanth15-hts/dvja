@@ -61,6 +61,7 @@ phases:
       - export BUCKET_NAME=cicddevsecops  # Replace with your bucket name
       - export PRESIGNED_URL=$(aws s3 presign s3://$BUCKET_NAME/$SNYK_REPORT_PATH --expires-in 3600)
       - echo "Pre-signed URL for Snyk report: $PRESIGNED_URL"
+      
       - echo "Sending notification with pre-signed URL"
       - aws sns publish --topic-arn "arn:aws:sns:ap-south-1:890742607967:SnykReports" --message "A new Snyk report is available. You can download it here: $PRESIGNED_URL"
 
