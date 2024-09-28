@@ -56,34 +56,14 @@ phases:
 
   post_build:
     commands:
-      - echo "Zipping all reports in target folder..."
-      - zip -r reports.zip target/*
-
-      - echo "Creating MIME message with reports.zip attachment..."
-      - |
-        cat <<EOF > email.txt
-        From: "vasanth@hts.consulting"
-        To: "antony@hts.consulting, vasanth@hts.consulting"
-        Subject: DevSecOps Reports
-        MIME-Version: 1.0
-        Content-Type: multipart/mixed; boundary="NextPart"
-
-        --NextPart
-        Content-Type: text/plain
-
-        Attached are the reports generated from the DevSecOps pipeline.
-
-        --NextPart
-        Content-Type: application/zip; name="reports.zip"
-        Content-Transfer-Encoding: base64
-        Content-Disposition: attachment; filename="reports.zip"
-
-        $(base64 reports.zip)
-        --NextPart--
-        EOF
-
-      - echo "Sending email with reports.zip attachment..."
-      - aws ses send-raw-email --raw-message file://email.txt --region "ap-south-1"
+      - echo "Generating pre-signed URL for Snyk report"
+      - export SNYK_REPORT_PATH=target/snyk-report.html
+      - export BUCKET_NAME=cicddevsecops  # Replace with your bucket name
+      - export PRESIGNED_URL=$(aws s3 presign s3://$BUCKET_NAME/$SNYK_REPORT_PATH --expires-in 3600)
+      - echo "Pre-signed URL for Snyk report: $PRESIGNED_URL"
+      
+      - echo "Sending notification with pre-signed URL"
+      - aws sns publish --topic-arn "arn:aws:sns:REGION:ACCOUNT_ID:YOUR_SNS_TOPIC_NAME" --message "A new Snyk report is available. You can download it here: $PRESIGNED_URL"
 
 artifacts:
   files:
