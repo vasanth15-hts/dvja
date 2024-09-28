@@ -67,17 +67,17 @@ phases:
 
 artifacts:
   files:
-    - "target/*"
-    - "target/imagedefinitions.json"  # Include image definition file
+    - target/*
+    - target/imagedefinitions.json  # Include image definition file
 
 reports:
   dependency-check:
     files:
-      - "target/dependency-check-report.html"
+      - target/dependency-check-report.html
   snyk:
     files:
-      - "target/snyk-report.html"
+      - target/snyk-report.html
 
 cache:
   paths:
-    - "/root/.m2/**/*"  # Cache Maven dependencies
+    - /root/.m2/**/*
