@@ -33,6 +33,14 @@ phases:
       - echo "Running OWASP Dependency Check with NVD API Key"
       - mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY
 
+      # Debugging step: Check if Dependency Check report exists
+      - echo "Listing files in the target directory"
+      - ls target/
+
+      # If the file exists, we will proceed
+      - echo "Moving Dependency Check report to current directory"
+      - mv target/dependency-check-report.xml . || echo "File not found!"
+
       - echo "Running Snyk for SAST and Saving Report"
       - snyk test --all-projects --json > snyk-report.json || true
 
@@ -50,10 +58,21 @@ phases:
 
   post_build:
     commands:
-      - echo "Uploading Dependency Check report to DefectDojo"
-      - |
-        curl -X POST "http://15.206.28.42:8080/api/v2/import-scan/" -H "Authorization: Token $DEFECTDOJO_API_KEY" -F "scan_type=Dependency Check" -F "engagement=$DEFECTDOJO_ENGAGEMENT_ID" -F "file=@dependency-check-report.xml"
+      # Ensure the file is present before uploading
+      - echo "Checking if Dependency Check report exists"
+      - if [ -f dependency-check-report.xml ]; then
+          echo "Uploading Dependency Check report to DefectDojo";
+          curl -X POST "http://15.206.28.42:8080/api/v2/import-scan/" \
+            -H "Authorization: Token $DEFECTDOJO_API_KEY" \
+            -F "scan_type=Dependency Check" \
+            -F "engagement=$DEFECTDOJO_ENGAGEMENT_ID" \
+            -F "file=@dependency-check-report.xml";
+        else
+          echo "Dependency Check report not found!";
+          exit 1;
+        fi
 
+      # Upload Snyk report
       - echo "Uploading Snyk report to DefectDojo"
       - |
         curl -X POST "http://15.206.28.42:8080/api/v2/import-scan/" -H "Authorization: Token $DEFECTDOJO_API_KEY" -F "scan_type=Snyk" -F "engagement=$DEFECTDOJO_ENGAGEMENT_ID" -F "file=@snyk-report.json"
