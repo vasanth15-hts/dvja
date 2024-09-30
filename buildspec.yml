@@ -43,16 +43,13 @@ phases:
       - echo "Moving Snyk Report to Target Directory"
       - mv snyk-report.html target/
 
-      - echo "Generating image definition file"
-      - echo '[{"name":"cicd/test","imageUri":"890742607967.dkr.ecr.ap-south-1.amazonaws.com/cicd/test:latest"}]' > target/imagedefinitions.json
-
       - echo "Running SonarCloud Analysis"
       - mvn verify sonar:sonar -Dsonar.projectKey=monster -Dsonar.organization=monster -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=9694b8a21216ed240b16f68817210bf76422579f
 
   post_build:
     commands:
       - echo "Uploading OWASP Dependency Check Report to DefectDojo"
-      - curl -X POST "http://15.206.28.42:8080/api/v2/import-scan/" \
+      - 'curl -X POST "http://15.206.28.42:8080/api/v2/import-scan/" \
         -H "Authorization: Token $DEFECTDOJO_API_KEY" \
         -H "Content-Type: multipart/form-data" \
         -F "scan_type=Dependency Check Scan" \
@@ -61,10 +58,10 @@ phases:
         -F "engagement=dvja-cicd" \
         -F "scan_date=$(date +%Y-%m-%d)" \
         -F "active=true" \
-        -F "verified=true"
+        -F "verified=true"'
 
       - echo "Uploading Snyk Report to DefectDojo"
-      - curl -X POST "http://15.206.28.42:8080/api/v2/import-scan/" \
+      - 'curl -X POST "http://15.206.28.42:8080/api/v2/import-scan/" \
         -H "Authorization: Token $DEFECTDOJO_API_KEY" \
         -H "Content-Type: multipart/form-data" \
         -F "scan_type=Snyk Scan" \
@@ -73,4 +70,4 @@ phases:
         -F "engagement=dvja-cicd" \
         -F "scan_date=$(date +%Y-%m-%d)" \
         -F "active=true" \
-        -F "verified=true"
+        -F "verified=true"'
