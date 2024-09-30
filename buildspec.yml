@@ -4,7 +4,7 @@ phases:
   install:
     commands:
       - echo "Updating APT packages and installing dependencies"
-      - apt-get update -y && apt-get install -y curl unzip
+      - apt-get update -y && apt-get install -y curl unzip jq  # Added jq for parsing JSON
 
       - echo "Installing Node.js (with npm)"
       - curl -sL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs
@@ -32,14 +32,7 @@ phases:
 
       - echo "Running OWASP Dependency Check with NVD API Key"
       - mvn org.owasp:dependency-check-maven:check -Dnvd.api.key=$NVD_API_KEY
-
-      # Debugging step: Check if Dependency Check report exists
-      - echo "Listing files in the target directory"
-      - ls target/
-
-      # If the file exists, we will proceed
-      - echo "Moving Dependency Check report to current directory"
-      - mv target/dependency-check-report.xml . || echo "File not found!"
+      - mv target/dependency-check-report.xml target/dependency-check-report-defectdojo.xml  # Rename for DefectDojo compatibility
 
       - echo "Running Snyk for SAST and Saving Report"
       - snyk test --all-projects --json > snyk-report.json || true
@@ -58,29 +51,26 @@ phases:
 
   post_build:
     commands:
-      # Ensure the file is present before uploading
-      - echo "Checking if Dependency Check report exists"
-      - if [ -f dependency-check-report.xml ]; then
-          echo "Uploading Dependency Check report to DefectDojo";
-          curl -X POST "http://15.206.28.42:8080/api/v2/import-scan/" \
-            -H "Authorization: Token $DEFECTDOJO_API_KEY" \
-            -F "scan_type=Dependency Check" \
-            -F "engagement=$DEFECTDOJO_ENGAGEMENT_ID" \
-            -F "file=@dependency-check-report.xml";
-        else
-          echo "Dependency Check report not found!";
-          exit 1;
-        fi
+      - echo "Uploading OWASP Dependency Check Report to DefectDojo"
+      - curl -X POST "https://defectdojo.your-instance.com/api/v2/import-scan/" \
+        -H "Authorization: Token $DEFECTDOJO_API_KEY" \
+        -H "Content-Type: multipart/form-data" \
+        -F "scan_type=Dependency Check Scan" \
+        -F "file=@target/dependency-check-report-defectdojo.xml" \
+        -F "product_name=dvj" \
+        -F "engagement=dvja-cicd" \
+        -F "scan_date=$(date +%Y-%m-%d)" \
+        -F "active=true" \
+        -F "verified=true"
 
-      # Upload Snyk report
-      - echo "Uploading Snyk report to DefectDojo"
-      - |
-        curl -X POST "http://15.206.28.42:8080/api/v2/import-scan/" -H "Authorization: Token $DEFECTDOJO_API_KEY" -F "scan_type=Snyk" -F "engagement=$DEFECTDOJO_ENGAGEMENT_ID" -F "file=@snyk-report.json"
-
-artifacts:
-  files:
-    - target/snyk-report.html
-    - target/dependency-check-report.xml
-    - dependency-check-report.xml
-    - snyk-report.json
-  discard-paths: yes
+      - echo "Uploading Snyk Report to DefectDojo"
+      - curl -X POST "https://defectdojo.your-instance.com/api/v2/import-scan/" \
+        -H "Authorization: Token $DEFECTDOJO_API_KEY" \
+        -H "Content-Type: multipart/form-data" \
+        -F "scan_type=Snyk Scan" \
+        -F "file=@target/snyk-report.json" \
+        -F "product_name=dvja" \
+        -F "engagement=dvja-cicd" \
+        -F "scan_date=$(date +%Y-%m-%d)" \
+        -F "active=true" \
+        -F "verified=true"
